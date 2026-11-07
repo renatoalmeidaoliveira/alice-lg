@@ -77,8 +77,13 @@ export const ColNetwork = ({onClick, route}) => {
   return (
     <td className="col-route-network">
       <span className="route-network" onClick={onClick}>
-        {route.network} 
+        {route.network}
       </span>
+      {route.route_distinguisher &&
+        <span className="route-rd label label-default"
+              title="Route Distinguisher (L3VPN)">
+          RD {route.route_distinguisher}
+        </span>}
       <FilterReason route={route} />
       <NoExportReason route={route} />
     </td>

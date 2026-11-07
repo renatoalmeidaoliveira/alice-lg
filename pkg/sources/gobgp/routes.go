@@ -2,6 +2,7 @@ package gobgp
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -70,6 +71,87 @@ func (gobgp *GoBGP) GetNeighbors(
 	return peers, nil
 }
 
+// supportedFamilies is the list of address families
+// alice will query from gobgp.
+var supportedFamilies = []*gobgpapi.Family{
+	{
+		Afi:  gobgpapi.Family_AFI_IP,
+		Safi: gobgpapi.Family_SAFI_UNICAST,
+	},
+	{
+		Afi:  gobgpapi.Family_AFI_IP6,
+		Safi: gobgpapi.Family_SAFI_UNICAST,
+	},
+	{
+		Afi:  gobgpapi.Family_AFI_IP,
+		Safi: gobgpapi.Family_SAFI_MPLS_VPN,
+	},
+	{
+		Afi:  gobgpapi.Family_AFI_IP6,
+		Safi: gobgpapi.Family_SAFI_MPLS_VPN,
+	},
+}
+
+// familyName returns a human readable name of the family
+func familyName(f *gobgpapi.Family) string {
+	switch {
+	case f.Afi == gobgpapi.Family_AFI_IP && f.Safi == gobgpapi.Family_SAFI_UNICAST:
+		return "ipv4-unicast"
+	case f.Afi == gobgpapi.Family_AFI_IP6 && f.Safi == gobgpapi.Family_SAFI_UNICAST:
+		return "ipv6-unicast"
+	case f.Afi == gobgpapi.Family_AFI_IP && f.Safi == gobgpapi.Family_SAFI_MPLS_VPN:
+		return "l3vpn-ipv4-unicast"
+	case f.Afi == gobgpapi.Family_AFI_IP6 && f.Safi == gobgpapi.Family_SAFI_MPLS_VPN:
+		return "l3vpn-ipv6-unicast"
+	}
+	return fmt.Sprintf("afi=%d/safi=%d", f.Afi, f.Safi)
+}
+
+// peerFamilies returns the supported address families
+// configured for the peer. If the peer does not provide
+// any information about its families, all supported
+// families are returned.
+func peerFamilies(peer *gobgpapi.Peer) []*gobgpapi.Family {
+	if peer == nil || len(peer.AfiSafis) == 0 {
+		return supportedFamilies
+	}
+	families := make([]*gobgpapi.Family, 0, len(supportedFamilies))
+	for _, family := range supportedFamilies {
+		for _, afiSafi := range peer.AfiSafis {
+			if afiSafi.Config == nil || afiSafi.Config.Family == nil {
+				continue
+			}
+			f := afiSafi.Config.Family
+			if f.Afi == family.Afi && f.Safi == family.Safi {
+				families = append(families, family)
+				break
+			}
+		}
+	}
+	if len(families) == 0 {
+		return supportedFamilies
+	}
+	return families
+}
+
+// vpnInfo extracts the route distinguisher and the
+// MPLS label stack from a L3VPN NLRI.
+func vpnInfo(
+	rd bgp.RouteDistinguisherInterface,
+	labels *bgp.MPLSLabelStack,
+) (string, []uint32) {
+	rdStr := ""
+	if rd != nil {
+		rdStr = rd.String()
+	}
+	var mplsLabels []uint32
+	if labels != nil && len(labels.Labels) > 0 {
+		mplsLabels = make([]uint32, len(labels.Labels))
+		copy(mplsLabels, labels.Labels)
+	}
+	return rdStr, mplsLabels
+}
+
 func extCommunitySubTypeName(subType bgp.ExtendedCommunityAttrSubType) string {
 	switch subType {
 	case bgp.EC_SUBTYPE_ROUTE_TARGET:
@@ -79,6 +161,51 @@ func extCommunitySubTypeName(subType bgp.ExtendedCommunityAttrSubType) string {
 	default:
 		return "generic"
 	}
+}
+
+// extCommunityToAPI converts an extended community into
+// the alice representation [name, int, int].
+//
+// Route targets and route origins with an AS as global
+// administrator are rendered as e.g. rt:52890:20.
+// All other types (e.g. opaque or vendor specific
+// communities like [64821] in the gobgp cli) are rendered
+// as 0xTT:SUBTYPE:VALUE, where TT is the type, SUBTYPE the
+// sub type and VALUE the remaining 6 bytes as an integer.
+//
+// IPv4 address specific communities can not be expressed
+// with integers only and are ignored.
+func extCommunityToAPI(
+	community bgp.ExtendedCommunityInterface,
+) (api.ExtCommunity, bool) {
+	switch c := community.(type) {
+	case *bgp.TwoOctetAsSpecificExtended:
+		return api.ExtCommunity{
+			extCommunitySubTypeName(c.SubType),
+			int(c.AS),
+			int(c.LocalAdmin),
+		}, true
+	case *bgp.FourOctetAsSpecificExtended:
+		return api.ExtCommunity{
+			extCommunitySubTypeName(c.SubType),
+			int(c.AS),
+			int(c.LocalAdmin),
+		}, true
+	case *bgp.IPv4AddressSpecificExtended:
+		return nil, false
+	}
+
+	buf, err := community.Serialize()
+	if err != nil || len(buf) != 8 {
+		return nil, false
+	}
+	value := make([]byte, 8)
+	copy(value[2:], buf[2:])
+	return api.ExtCommunity{
+		fmt.Sprintf("0x%02x", buf[0]),
+		int(buf[1]),
+		int(binary.BigEndian.Uint64(value)),
+	}, true
 }
 
 func (gobgp *GoBGP) parsePathIntoRoute(
@@ -107,6 +234,18 @@ func (gobgp *GoBGP) parsePathIntoRoute(
 	case *bgp.IPv6AddrPrefix:
 		route.Network = fmt.Sprintf("%s/%d", nlri.Prefix.String(), nlri.Length)
 		route.AddrFamily = api.AddrFamilyIPv6
+	case *bgp.LabeledVPNIPAddrPrefix:
+		// VPNv4 (AFI 1 / SAFI 128)
+		route.Network = nlri.IPPrefix()
+		route.AddrFamily = api.AddrFamilyIPv4
+		route.RouteDistinguisher, route.MPLSLabels = vpnInfo(
+			nlri.RD, &nlri.Labels)
+	case *bgp.LabeledVPNIPv6AddrPrefix:
+		// VPNv6 (AFI 2 / SAFI 128)
+		route.Network = nlri.IPPrefix()
+		route.AddrFamily = api.AddrFamilyIPv6
+		route.RouteDistinguisher, route.MPLSLabels = vpnInfo(
+			nlri.RD, &nlri.Labels)
 	}
 
 	attrs, err := apiutil.GetNativePathAttributes(path)
@@ -152,28 +291,43 @@ func (gobgp *GoBGP) parsePathIntoRoute(
 				route.BGP.Communities = append(route.BGP.Communities, apiComm)
 			}
 		case *bgp.PathAttributeMpReachNLRI:
-			// We could look at the AFI/SAFI here but gobgp really has
-			// already done the work and we can just examine the nexthop length.
-			switch len(attr.Nexthop) {
-			case 4:
-				route.Gateway = pools.Gateways4.Acquire(attr.Nexthop.String())
-				route.BGP.NextHop = pools.Gateways4.Acquire(attr.Nexthop.String())
-			case 16:
-				route.Gateway = pools.Gateways6.Acquire(attr.Nexthop.String())
-				route.BGP.NextHop = pools.Gateways6.Acquire(attr.Nexthop.String())
+			// gobgp has already stripped the (zero) route
+			// distinguisher from VPN next hops. In a VPNv6 (6VPE)
+			// setup the next hop usually is an IPv4-mapped IPv6
+			// address of the PE, so we classify it by its content
+			// rather than by its length.
+			if attr.Nexthop == nil || attr.Nexthop.IsUnspecified() {
+				break
+			}
+			nextHop := attr.Nexthop.String()
+			if attr.Nexthop.To4() != nil {
+				route.Gateway = pools.Gateways4.Acquire(nextHop)
+				route.BGP.NextHop = pools.Gateways4.Acquire(nextHop)
+			} else {
+				route.Gateway = pools.Gateways6.Acquire(nextHop)
+				route.BGP.NextHop = pools.Gateways6.Acquire(nextHop)
 			}
 		case *bgp.PathAttributeExtendedCommunities:
 			for _, community := range attr.Value {
-				if apiComm, ok := community.(*bgp.TwoOctetAsSpecificExtended); ok {
+				if apiComm, ok := extCommunityToAPI(community); ok {
 					route.BGP.ExtCommunities = append(
-						route.BGP.ExtCommunities,
-						api.ExtCommunity{
-							extCommunitySubTypeName(apiComm.SubType),
-							int(apiComm.AS),
-							int(apiComm.LocalAdmin),
-						})
+						route.BGP.ExtCommunities, apiComm)
 				}
 			}
+		case *bgp.PathAttributeOriginatorId:
+			route.BGP.OriginatorID = attr.Value.String()
+		case *bgp.PathAttributeClusterList:
+			clusterList := make([]string, 0, len(attr.Value))
+			for _, id := range attr.Value {
+				clusterList = append(clusterList, id.String())
+			}
+			route.BGP.ClusterList = clusterList
+		case *bgp.PathAttributeAggregator:
+			route.BGP.Aggregator = fmt.Sprintf(
+				"AS%d %s", attr.Value.AS, attr.Value.Address.String())
+		case *bgp.PathAttributeAs4Aggregator:
+			route.BGP.Aggregator = fmt.Sprintf(
+				"AS%d %s", attr.Value.AS, attr.Value.Address.String())
 		case *bgp.PathAttributeLargeCommunities:
 			for _, community := range attr.Values {
 				route.BGP.LargeCommunities = append(
@@ -208,16 +362,7 @@ func (gobgp *GoBGP) GetRoutes(
 		ctx, time.Second*time.Duration(gobgp.config.ProcessingTimeout))
 	defer cancel()
 
-	families := []*gobgpapi.Family{
-		{
-			Afi:  gobgpapi.Family_AFI_IP,
-			Safi: gobgpapi.Family_SAFI_UNICAST,
-		},
-		{
-			Afi:  gobgpapi.Family_AFI_IP6,
-			Safi: gobgpapi.Family_SAFI_UNICAST,
-		},
-	}
+	families := peerFamilies(peer)
 	for _, family := range families {
 		pathStream, err := gobgp.client.ListPath(ctx, &gobgpapi.ListPathRequest{
 			Name:           peer.State.NeighborAddress,
@@ -236,8 +381,12 @@ func (gobgp *GoBGP) GetRoutes(
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				log.Print(err)
-				return err
+				// Do not abort: other address families of this
+				// peer may still provide routes.
+				log.Printf(
+					"error while fetching %s routes from %s: %v",
+					familyName(family), peer.State.NeighborAddress, err)
+				break
 			}
 
 			destination := resp.Destination

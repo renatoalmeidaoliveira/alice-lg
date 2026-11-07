@@ -198,11 +198,20 @@ func (gobgp *GoBGP) Neighbors(
 		neigh.RouteServerID = gobgp.config.ID
 
 		response.Neighbors = append(response.Neighbors, &neigh)
+		// Sum up the counters of all address families
+		// (ipv4/ipv6 unicast, vpnv4, vpnv6, ...)
 		for _, afiSafi := range _resp.Peer.AfiSafis {
-			neigh.RoutesReceived += int(afiSafi.State.Received)
+			if afiSafi.State == nil {
+				continue
+			}
+			received := int(afiSafi.State.Received)
+			accepted := int(afiSafi.State.Accepted)
+			neigh.RoutesReceived += received
 			neigh.RoutesExported += int(afiSafi.State.Advertised)
-			neigh.RoutesAccepted += int(afiSafi.State.Accepted)
-			neigh.RoutesFiltered += (neigh.RoutesReceived - neigh.RoutesAccepted)
+			neigh.RoutesAccepted += accepted
+			if received > accepted {
+				neigh.RoutesFiltered += received - accepted
+			}
 		}
 
 		if _resp.Peer.Timers.State.Uptime != nil {

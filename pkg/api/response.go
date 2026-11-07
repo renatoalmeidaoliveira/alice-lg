@@ -259,6 +259,11 @@ type BGPInfo struct {
 	LocalPref        int            `json:"local_pref"`
 	Med              int            `json:"med"`
 	OTC              *int           `json:"otc"`
+
+	// Route reflection and aggregation attributes
+	OriginatorID string   `json:"originator_id,omitempty"`
+	ClusterList  []string `json:"cluster_list,omitempty"`
+	Aggregator   string   `json:"aggregator,omitempty"`
 }
 
 // HasCommunity checks for the presence of a BGP community.

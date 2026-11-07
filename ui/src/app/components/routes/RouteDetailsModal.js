@@ -50,6 +50,16 @@ const RouteDetailsModal = () => {
         <ModalBody>
           <table className="table table-nolines">
            <tbody>
+            {route.route_distinguisher &&
+              <tr>
+                <th>Route Distinguisher:</th>
+                <td>{route.route_distinguisher}</td>
+              </tr>}
+            {route.mpls_labels && route.mpls_labels.length > 0 &&
+              <tr>
+                <th>MPLS Label{route.mpls_labels.length > 1 ? "s" : ""}:</th>
+                <td>{route.mpls_labels.join(" / ")}</td>
+              </tr>}
             <tr>
               <th>Age:</th>
               <td>
@@ -69,6 +79,21 @@ const RouteDetailsModal = () => {
                 <th>MED:</th>
                 <td>{attrs.med}</td>
             </tr>
+            {attrs.aggregator &&
+                <tr>
+                    <th>Aggregator:</th>
+                    <td>{attrs.aggregator}</td>
+                </tr>}
+            {attrs.originator_id &&
+                <tr>
+                    <th>Originator ID:</th>
+                    <td>{attrs.originator_id}</td>
+                </tr>}
+            {attrs.cluster_list && attrs.cluster_list.length > 0 &&
+                <tr>
+                    <th>Cluster List:</th>
+                    <td>{attrs.cluster_list.join(" ")}</td>
+                </tr>}
             {attrs.otc > 0 &&
                 <tr>
                     <th>OTC:</th>

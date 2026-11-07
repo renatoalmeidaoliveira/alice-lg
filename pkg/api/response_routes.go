@@ -27,12 +27,27 @@ type Route struct {
 	LearntFrom *string       `json:"learnt_from"`
 	AddrFamily uint8         `json:"address_family"` // 1=IPv4, 2=IPv6
 
+	// L3VPN (VPNv4 / VPNv6) information. These are only
+	// set for routes learned via the MPLS VPN SAFI (128).
+	RouteDistinguisher string   `json:"route_distinguisher,omitempty"`
+	MPLSLabels         []uint32 `json:"mpls_labels,omitempty"`
+
 	Details *json.RawMessage `json:"details"`
 }
 
 func (r *Route) String() string {
 	s, _ := json.Marshal(r)
 	return string(s)
+}
+
+// Key returns an identifier for the route which is unique
+// per neighbor. For L3VPN routes the same prefix may be present
+// multiple times with different route distinguishers.
+func (r *Route) Key() string {
+	if r.RouteDistinguisher == "" {
+		return r.Network
+	}
+	return r.RouteDistinguisher + ":" + r.Network
 }
 
 // MatchAddrFamily checks if the route matches the given address family
@@ -73,6 +88,9 @@ func (routes Routes) Len() int {
 }
 
 func (routes Routes) Less(i, j int) bool {
+	if routes[i].Network == routes[j].Network {
+		return routes[i].RouteDistinguisher < routes[j].RouteDistinguisher
+	}
 	return routes[i].Network < routes[j].Network
 }
 
