@@ -69,7 +69,7 @@ func (q QueryString) ExtractFilters() (string, []string) {
 	filters := []string{}
 
 	for _, t := range tokens {
-		if strings.HasPrefix(t, "#") {
+		if strings.HasPrefix(t, "#") || api.IsMPLSLabelToken(t) {
 			filters = append(filters, t)
 		} else {
 			query = append(query, t)

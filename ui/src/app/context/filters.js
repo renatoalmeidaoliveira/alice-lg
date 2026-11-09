@@ -28,6 +28,7 @@ const FILTER_KEY_COMMUNITIES = "communities";
 const FILTER_KEY_EXT_COMMUNITIES = "ext_communities";
 const FILTER_KEY_LARGE_COMMUNITIES = "large_communities";
 const FILTER_KEY_ADDR_FAMILY = "addr_family";
+const FILTER_KEY_MPLS_LABELS = "mpls_labels";
 
 export const FILTER_GROUP_SOURCES = 0;
 export const FILTER_GROUP_ASNS = 1;
@@ -35,6 +36,7 @@ export const FILTER_GROUP_COMMUNITIES = 2;
 export const FILTER_GROUP_EXT_COMMUNITIES = 3;
 export const FILTER_GROUP_LARGE_COMMUNITIES = 4;
 export const FILTER_GROUP_ADDR_FAMILY = 5;
+export const FILTER_GROUP_MPLS_LABELS = 6;
 
 const FILTER_GROUP_KEYS = {
   [FILTER_GROUP_SOURCES]: FILTER_KEY_SOURCES,
@@ -43,6 +45,7 @@ const FILTER_GROUP_KEYS = {
   [FILTER_GROUP_EXT_COMMUNITIES]: FILTER_KEY_EXT_COMMUNITIES,
   [FILTER_GROUP_LARGE_COMMUNITIES]: FILTER_KEY_LARGE_COMMUNITIES,
   [FILTER_GROUP_ADDR_FAMILY]: FILTER_KEY_ADDR_FAMILY,
+  [FILTER_GROUP_MPLS_LABELS]: FILTER_KEY_MPLS_LABELS,
 };
 
 
@@ -56,6 +59,7 @@ export const initializeFilterState = () => ([
   {"key": "ext_communities", "filters": []},
   {"key": "large_communities", "filters": []},
   {"key": "addr_family", "filters": []},
+  {"key": "mpls_labels", "filters": []},
 ]);
 
 // Compare values
@@ -77,6 +81,7 @@ const FILTER_VALUE_CMP = {
   [FILTER_GROUP_EXT_COMMUNITIES]: cmpList,
   [FILTER_GROUP_LARGE_COMMUNITIES]: cmpList,
   [FILTER_GROUP_ADDR_FAMILY]: cmpValueString,
+  [FILTER_GROUP_MPLS_LABELS]: cmpValue,
 }
 
 /*
@@ -142,6 +147,7 @@ const _mergeFilters = (a, b) => {
   setCmp[FILTER_GROUP_EXT_COMMUNITIES] = cmpFilterCommunity;
   setCmp[FILTER_GROUP_LARGE_COMMUNITIES] = cmpFilterCommunity;
   setCmp[FILTER_GROUP_ADDR_FAMILY] = cmpFilterValue;
+  setCmp[FILTER_GROUP_MPLS_LABELS] = cmpFilterValue;
   for (const i in groups) {
     if (a[i]?.filters && b[i]?.filters) {
       groups[i].filters = mergeFilterSet(setCmp[i], a[i].filters, b[i].filters);
@@ -209,6 +215,7 @@ const decodeQuery = (query) => {
   const extCommunities = decodeExtCommunities(query[FILTER_KEY_EXT_COMMUNITIES]);
   const largeCommunities = decodeCommunities(query[FILTER_KEY_LARGE_COMMUNITIES]);
   const addrFamily = decodeStringList(query[FILTER_KEY_ADDR_FAMILY]);
+  const mplsLabels = decodeIntList(query[FILTER_KEY_MPLS_LABELS]);
 
   let filters = {};
   filters[FILTER_KEY_SOURCES] = sources;
@@ -217,6 +224,7 @@ const decodeQuery = (query) => {
   filters[FILTER_KEY_EXT_COMMUNITIES] = extCommunities;
   filters[FILTER_KEY_LARGE_COMMUNITIES] = largeCommunities;
   filters[FILTER_KEY_ADDR_FAMILY] = addrFamily;
+  filters[FILTER_KEY_MPLS_LABELS] = mplsLabels;
   return filters;
 }
 
@@ -239,6 +247,7 @@ export const encodeFilters = (filters) => {
   const extCommunities = filters[FILTER_KEY_EXT_COMMUNITIES];
   const largeCommunities = filters[FILTER_KEY_LARGE_COMMUNITIES];
   const addrFamily = filters[FILTER_KEY_ADDR_FAMILY];
+  const mplsLabels = filters[FILTER_KEY_MPLS_LABELS] || [];
   return cleanParams({
     [FILTER_KEY_SOURCES]: encodeList(sources),
     [FILTER_KEY_ASNS]: encodeList(asns),
@@ -246,6 +255,7 @@ export const encodeFilters = (filters) => {
     [FILTER_KEY_EXT_COMMUNITIES]: encodeCommunities(extCommunities),
     [FILTER_KEY_LARGE_COMMUNITIES]: encodeCommunities(largeCommunities),
     [FILTER_KEY_ADDR_FAMILY]: encodeList(addrFamily),
+    [FILTER_KEY_MPLS_LABELS]: encodeList(mplsLabels),
   });
 }
 
@@ -261,6 +271,7 @@ export const useFiltersQuery = () => {
     [FILTER_KEY_EXT_COMMUNITIES]: "",
     [FILTER_KEY_LARGE_COMMUNITIES]: "",
     [FILTER_KEY_ADDR_FAMILY]: "",
+    [FILTER_KEY_MPLS_LABELS]: "",
   });
 
   const filterQuery = useMemo(() => decodeQuery(query), [query]);
@@ -343,6 +354,8 @@ export const useLargeCommunitiesFilters = createGroupFilters(
   FILTER_GROUP_LARGE_COMMUNITIES);
 export const useAddrFamilyFilters = createGroupFilters(
   FILTER_GROUP_ADDR_FAMILY);
+export const useMPLSLabelFilters = createGroupFilters(
+  FILTER_GROUP_MPLS_LABELS);
 
 /**
  * RoutesFiltersProvider merged the filters from the

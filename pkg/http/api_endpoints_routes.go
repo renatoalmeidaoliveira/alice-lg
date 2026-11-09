@@ -78,8 +78,14 @@ func (s *Server) apiRoutesListReceived(
 
 	var hasIP4, hasIP6 bool
 	filtersAvailable := api.NewSearchFilters()
+	filtersNoLabels := filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
 	for _, r := range allRoutes {
 		if !filtersApplied.MatchRoute(r) {
+			// Keep the labels of routes, which are only excluded
+			// by the MPLS label filter, selectable.
+			if filtersNoLabels.MatchRoute(r) {
+				filtersAvailable.UpdateMPLSLabelsFromRoute(r)
+			}
 			continue // Exclude route from results set
 		}
 		routes = append(routes, r)
@@ -162,9 +168,15 @@ func (s *Server) apiRoutesListFiltered(
 	}
 
 	filtersAvailable := api.NewSearchFilters()
+	filtersNoLabels := filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
 	var hasIP4, hasIP6 bool
 	for _, r := range allRoutes {
 		if !filtersApplied.MatchRoute(r) {
+			// Keep the labels of routes, which are only excluded
+			// by the MPLS label filter, selectable.
+			if filtersNoLabels.MatchRoute(r) {
+				filtersAvailable.UpdateMPLSLabelsFromRoute(r)
+			}
 			continue // Exclude route from results set
 		}
 		routes = append(routes, r)
@@ -248,9 +260,15 @@ func (s *Server) apiRoutesListNotExported(
 	}
 
 	filtersAvailable := api.NewSearchFilters()
+	filtersNoLabels := filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
 	var hasIP4, hasIP6 bool
 	for _, r := range allRoutes {
 		if !filtersApplied.MatchRoute(r) {
+			// Keep the labels of routes, which are only excluded
+			// by the MPLS label filter, selectable.
+			if filtersNoLabels.MatchRoute(r) {
+				filtersAvailable.UpdateMPLSLabelsFromRoute(r)
+			}
 			continue // Exclude route from results set
 		}
 		routes = append(routes, r)

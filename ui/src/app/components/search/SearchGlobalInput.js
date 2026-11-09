@@ -85,6 +85,7 @@ const Help = () => {
         <li><b>Peers</b> by entering their name</li>
         <li><b>ASNs</b> by prefixing them with 'AS'</li>
         <li><b>Communities</b> by prefixing them with '#'</li>
+        <li><b>MPLS labels</b> by prefixing them with 'label:'</li>
       </ul>
       <p>Just start typing!</p>
       <LookupExamples />

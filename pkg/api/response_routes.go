@@ -55,6 +55,16 @@ func (r *Route) MatchAddrFamily(family uint8) bool {
 	return r.AddrFamily == family
 }
 
+// MatchMPLSLabel checks if the route carries the MPLS label
+func (r *Route) MatchMPLSLabel(label int) bool {
+	for _, l := range r.MPLSLabels {
+		if int(l) == label {
+			return true
+		}
+	}
+	return false
+}
+
 // MatchSourceID implements Filterable interface for routes
 func (r *Route) MatchSourceID(id string) bool {
 	return true // A route has no source info so we exclude this filter
@@ -225,6 +235,11 @@ func (r *LookupRoute) MatchLargeCommunity(community Community) bool {
 // MatchAddrFamily matches address family.
 func (r *LookupRoute) MatchAddrFamily(family uint8) bool {
 	return r.Route.MatchAddrFamily(family)
+}
+
+// MatchMPLSLabel matches an MPLS label
+func (r *LookupRoute) MatchMPLSLabel(label int) bool {
+	return r.Route.MatchMPLSLabel(label)
 }
 
 // MatchNeighborQuery matches a neighbor query

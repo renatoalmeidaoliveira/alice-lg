@@ -16,6 +16,7 @@ const (
 	SearchKeyExtCommunities   = "ext_communities"
 	SearchKeyLargeCommunities = "large_communities"
 	SearchKeyAddrFamily       = "addr_family"
+	SearchKeyMPLSLabels       = "mpls_labels"
 )
 
 // Filterable objects provide methods for matching
@@ -27,6 +28,7 @@ type Filterable interface {
 	MatchExtCommunity(community ExtCommunity) bool
 	MatchLargeCommunity(community Community) bool
 	MatchAddrFamily(family uint8) bool
+	MatchMPLSLabel(label int) bool
 }
 
 // FilterValue can be anything
@@ -278,6 +280,14 @@ func searchFilterMatchAddrFamily(route Filterable, value any) bool {
 	return route.MatchAddrFamily(uint8(family))
 }
 
+func searchFilterMatchMPLSLabel(route Filterable, value any) bool {
+	label, ok := value.(int)
+	if !ok {
+		return false
+	}
+	return route.MatchMPLSLabel(label)
+}
+
 func selectCmpFuncByKey(key string) SearchFilterComparator {
 	var cmp SearchFilterComparator
 	switch key {
@@ -293,6 +303,8 @@ func selectCmpFuncByKey(key string) SearchFilterComparator {
 		cmp = searchFilterMatchLargeCommunity
 	case SearchKeyAddrFamily:
 		cmp = searchFilterMatchAddrFamily
+	case SearchKeyMPLSLabels:
+		cmp = searchFilterMatchMPLSLabel
 	default:
 		cmp = nil
 	}
@@ -386,6 +398,11 @@ func NewSearchFilters() *SearchFilters {
 			Filters:    []*SearchFilter{},
 			filtersIdx: make(map[string]int),
 		},
+		&SearchFilterGroup{
+			Key:        SearchKeyMPLSLabels,
+			Filters:    []*SearchFilter{},
+			filtersIdx: make(map[string]int),
+		},
 	}
 
 	return groups
@@ -409,6 +426,8 @@ func (s *SearchFilters) GetGroupByKey(key string) *SearchFilterGroup {
 		return (*s)[4]
 	case SearchKeyAddrFamily:
 		return (*s)[5]
+	case SearchKeyMPLSLabels:
+		return (*s)[6]
 	}
 	return nil
 }
@@ -457,6 +476,27 @@ func (s *SearchFilters) UpdateCommunitiesFromLookupRoute(r *LookupRoute) {
 	}
 }
 
+// UpdateMPLSLabelsFromLookupRoute updates the MPLS label filter
+func (s *SearchFilters) UpdateMPLSLabelsFromLookupRoute(r *LookupRoute) {
+	s.UpdateMPLSLabelsFromRoute(r.Route)
+}
+
+// UpdateMPLSLabelsFromRoute adds the MPLS labels of a (L3VPN)
+// route to the MPLS label filter group.
+func (s *SearchFilters) UpdateMPLSLabelsFromRoute(r *Route) {
+	if r == nil || len(r.MPLSLabels) == 0 {
+		return
+	}
+	labels := s.GetGroupByKey(SearchKeyMPLSLabels)
+	for _, l := range r.MPLSLabels {
+		label := int(l)
+		labels.AddFilter(&SearchFilter{
+			Name:  strconv.Itoa(label),
+			Value: label,
+		})
+	}
+}
+
 // UpdateFromLookupRoute updates a filter
 // and its counters.
 //
@@ -467,6 +507,7 @@ func (s *SearchFilters) UpdateFromLookupRoute(r *LookupRoute) {
 	s.UpdateSourcesFromLookupRoute(r)
 	s.UpdateASNSFromLookupRoute(r)
 	s.UpdateCommunitiesFromLookupRoute(r)
+	s.UpdateMPLSLabelsFromLookupRoute(r)
 }
 
 // UpdateFromRoute updates a search filter, however as
@@ -497,6 +538,8 @@ func (s *SearchFilters) UpdateFromRoute(r *Route) {
 			Value: c,
 		})
 	}
+
+	s.UpdateMPLSLabelsFromRoute(r)
 }
 
 // SetFilterAddrFamilies adds an ipv4 / ipv6 filter
@@ -586,6 +629,13 @@ func FiltersFromQuery(query url.Values) (*SearchFilters, error) {
 				return nil, err
 			}
 			queryFilters.GetGroupByKey(SearchKeyAddrFamily).AddFilters(filters)
+
+		case SearchKeyMPLSLabels:
+			filters, err := parseQueryValueList(parseMPLSLabelValue, value)
+			if err != nil {
+				return nil, err
+			}
+			queryFilters.GetGroupByKey(SearchKeyMPLSLabels).AddFilters(filters)
 		}
 	}
 	return queryFilters, nil
@@ -638,6 +688,12 @@ func FiltersFromTokens(tokens []string) (*SearchFilters, error) {
 				return nil, err
 			}
 			queryFilters.GetGroupByKey(key).AddFilter(filter)
+		} else if IsMPLSLabelToken(value) { // MPLS label query
+			filter, err := parseMPLSLabelValue(value[len(MPLSLabelTokenPrefix):])
+			if err != nil {
+				return nil, err
+			}
+			queryFilters.GetGroupByKey(SearchKeyMPLSLabels).AddFilter(filter)
 		}
 
 	}
@@ -674,6 +730,11 @@ func (s *SearchFilters) MatchRoute(r Filterable) bool {
 
 	addrFamily := s.GetGroupByKey(SearchKeyAddrFamily)
 	if !addrFamily.MatchAny(r) {
+		return false
+	}
+
+	mplsLabels := s.GetGroupByKey(SearchKeyMPLSLabels)
+	if !mplsLabels.MatchAny(r) {
 		return false
 	}
 
@@ -743,6 +804,25 @@ func (s *SearchFilters) MergeProperties(other *SearchFilters) {
 			filter.Cardinality = otherFilter.Cardinality
 		}
 	}
+}
+
+// WithoutGroup returns a copy of the search filters
+// where the filter group identified by key is empty.
+// The other groups are shared.
+func (s *SearchFilters) WithoutGroup(key string) *SearchFilters {
+	result := make(SearchFilters, len(*s))
+	for i, group := range *s {
+		if group.Key == key {
+			result[i] = &SearchFilterGroup{
+				Key:        group.Key,
+				Filters:    []*SearchFilter{},
+				filtersIdx: make(map[string]int),
+			}
+			continue
+		}
+		result[i] = group
+	}
+	return &result
 }
 
 // HasGroup checks if a group with a given key exists

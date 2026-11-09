@@ -9,6 +9,8 @@ import CommunitiesSelect
   from 'app/components/filters/CommunitiesSelect';
 import AddrFamilySelect
   from 'app/components/filters/AddrFamilySelect';
+import MPLSLabelsSelect
+  from 'app/components/filters/MPLSLabelsSelect';
 
 
 const withGroup = (title, FilterGroup) => (props) => {
@@ -28,6 +30,7 @@ const RouteServersGroup = withGroup("Route Server", RouteServersSelect);
 const CommunitiesGroup = withGroup("BGP Communities", CommunitiesSelect);
 const PeersGroup = withGroup("Neighbor", PeersSelect);
 const AddrFamilyGroup = withGroup("Address Family", AddrFamilySelect);
+const MPLSLabelsGroup = withGroup("MPLS Label", MPLSLabelsSelect);
 
 const FiltersEditor = () => {
   const totalFilters = useTotalFilters();
@@ -40,6 +43,7 @@ const FiltersEditor = () => {
       <AddrFamilyGroup />
       <RouteServersGroup />
       <PeersGroup />
+      <MPLSLabelsGroup />
       <CommunitiesGroup />
     </div>
   );

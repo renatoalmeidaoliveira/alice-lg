@@ -58,9 +58,20 @@ func (s *Server) apiLookupPrefixGlobal(
 	lookupEmptyQuery := false
 	if q == "" && (filtersApplied.HasGroup(api.SearchKeyCommunities) ||
 		filtersApplied.HasGroup(api.SearchKeyExtCommunities) ||
-		filtersApplied.HasGroup(api.SearchKeyLargeCommunities)) {
+		filtersApplied.HasGroup(api.SearchKeyLargeCommunities) ||
+		filtersApplied.HasGroup(api.SearchKeyMPLSLabels)) {
 		lookupPrefix = true
 		lookupEmptyQuery = true
+	}
+
+	// MPLS labels are matched after querying the store when
+	// searching for a prefix or a neighbor. This keeps the
+	// labels of the other routes selectable.
+	labelFilters := filtersApplied.GetGroupByKey(api.SearchKeyMPLSLabels)
+	deferLabels := !lookupEmptyQuery && len(labelFilters.Filters) > 0
+	storeFilters := filtersApplied
+	if deferLabels {
+		storeFilters = filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
 	}
 
 	// Measure response time
@@ -75,7 +86,7 @@ func (s *Server) apiLookupPrefixGlobal(
 				return nil, err
 			}
 		}
-		routes, err = s.routesStore.LookupPrefix(ctx, q, filtersApplied)
+		routes, err = s.routesStore.LookupPrefix(ctx, q, storeFilters)
 		if err != nil {
 			return nil, err
 		}
@@ -90,10 +101,24 @@ func (s *Server) apiLookupPrefixGlobal(
 		if err != nil {
 			return nil, err
 		}
-		routes, err = s.routesStore.LookupPrefixForNeighbors(ctx, neighbors, filtersApplied)
+		routes, err = s.routesStore.LookupPrefixForNeighbors(ctx, neighbors, storeFilters)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// Apply deferred MPLS label filters
+	labelsAvailable := api.NewSearchFilters()
+	if deferLabels {
+		matched := make(api.LookupRoutes, 0, len(routes))
+		for _, r := range routes {
+			if labelFilters.MatchAny(r) {
+				matched = append(matched, r)
+				continue
+			}
+			labelsAvailable.UpdateMPLSLabelsFromLookupRoute(r)
+		}
+		routes = matched
 	}
 
 	// Split routes
@@ -120,7 +145,7 @@ func (s *Server) apiLookupPrefixGlobal(
 
 	// Now, as we have allocated even more space split routes,
 	// and update the available filters...
-	filtersAvailable := api.NewSearchFilters()
+	filtersAvailable := labelsAvailable
 	var hasIP4, hasIP6 bool
 	for _, r := range routes {
 
@@ -135,6 +160,7 @@ func (s *Server) apiLookupPrefixGlobal(
 		// conditionally for communities.
 		filtersAvailable.UpdateSourcesFromLookupRoute(r)
 		filtersAvailable.UpdateASNSFromLookupRoute(r)
+		filtersAvailable.UpdateMPLSLabelsFromLookupRoute(r)
 
 		if canFilterCommunities {
 			filtersAvailable.UpdateCommunitiesFromLookupRoute(r)

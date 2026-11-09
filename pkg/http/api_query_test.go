@@ -73,3 +73,13 @@ func TestApiQueryFilterNextHopGateway(t *testing.T) {
 		t.Error("Expected 142.23.0.0/16 to match criteria, got:", filtered[0])
 	}
 }
+
+func TestQueryStringExtractFiltersMPLSLabel(t *testing.T) {
+	q, filters := QueryString("10.1.2.0 label:24002 #rt:65000:100").ExtractFilters()
+	if q != "10.1.2.0" {
+		t.Error("unexpected query:", q)
+	}
+	if len(filters) != 2 || filters[0] != "label:24002" {
+		t.Error("unexpected filters:", filters)
+	}
+}
