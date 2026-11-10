@@ -25,12 +25,12 @@ func makeVPNPath(
 			[]bgp.ExtendedCommunityInterface{
 				bgp.NewTwoOctetAsSpecificExtended(
 					bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 100, true),
-				// Shown as [64821] by the gobgp cli
+				// Shown as [4242] by the gobgp cli
 				bgp.NewOpaqueExtended(
-					true, []byte{0, 0, 0, 0, 0, 0xfd, 0x35}),
+					true, []byte{0, 0, 0, 0, 0, 0x10, 0x92}),
 			}),
-		bgp.NewPathAttributeOriginatorId("3.0.1.1"),
-		bgp.NewPathAttributeClusterList([]string{"172.30.33.77"}),
+		bgp.NewPathAttributeOriginatorId("192.0.2.11"),
+		bgp.NewPathAttributeClusterList([]string{"192.0.2.77"}),
 	}
 	path, err := apiutil.NewPath(nlri, false, attrs, time.Now())
 	if err != nil {
@@ -75,14 +75,14 @@ func TestParseVPNv4PathIntoRoute(t *testing.T) {
 	if route.BGP.ExtCommunities[0].String() != "rt:65000:100" {
 		t.Error("unexpected route target:", route.BGP.ExtCommunities[0])
 	}
-	if route.BGP.ExtCommunities[1].String() != "0x03:0:64821" {
+	if route.BGP.ExtCommunities[1].String() != "0x03:0:4242" {
 		t.Error("unexpected opaque community:", route.BGP.ExtCommunities[1])
 	}
-	if route.BGP.OriginatorID != "3.0.1.1" {
+	if route.BGP.OriginatorID != "192.0.2.11" {
 		t.Error("unexpected originator id:", route.BGP.OriginatorID)
 	}
 	if len(route.BGP.ClusterList) != 1 ||
-		route.BGP.ClusterList[0] != "172.30.33.77" {
+		route.BGP.ClusterList[0] != "192.0.2.77" {
 		t.Error("unexpected cluster list:", route.BGP.ClusterList)
 	}
 	if route.Key() != "65000:100:10.1.2.0/24" {

@@ -1,0 +1,109 @@
+/*
+ * Documentation: sidebar navigation and document pages
+ */
+
+.page-sidebar {
+  .docs-nav {
+    margin-top: 30px;
+
+    > ul {
+      list-style: none;
+      padding: 0px;
+      margin: 0px;
+
+      li {
+        padding: 6px 8px 6px 15px;
+
+        &.active {
+          background: rgba(255, 255, 255, 0.08);
+        }
+      }
+    }
+
+    a.doc-link {
+      display: block;
+      font-size: 13px;
+      color: #f0f0f0;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.doc-page {
+  .card {
+    padding: 20px 30px;
+  }
+
+  .doc-not-found {
+    color: #888;
+  }
+}
+
+.doc-content {
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 900px;
+
+  h1 {
+    margin-top: 0px;
+    font-size: 28px;
+  }
+
+  h2 {
+    font-size: 22px;
+    margin-top: 28px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  h3 {
+    font-size: 18px;
+    margin-top: 22px;
+  }
+
+  img {
+    max-width: 100%;
+  }
+
+  table {
+    margin: 15px 0px;
+    border-collapse: collapse;
+
+    th, td {
+      padding: 6px 12px;
+      border: 1px solid #ddd;
+    }
+
+    th {
+      background: #f6f6f6;
+    }
+  }
+
+  code {
+    color: #333;
+    background: #f4f4f4;
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
+  pre {
+    background: #f6f6f6;
+    border: 1px solid #e5e5e5;
+    padding: 10px 12px;
+
+    code {
+      background: none;
+      padding: 0px;
+    }
+  }
+
+  blockquote {
+    font-size: 15px;
+    color: #555;
+    border-left: 4px solid #ddd;
+  }
+}

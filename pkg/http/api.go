@@ -27,6 +27,10 @@ import (
 //     Neighbors    /api/v1/routeservers/:id/neighbors
 //     Routes       /api/v1/routeservers/:id/neighbors/:neighborId/routes
 //
+//   Documentation
+//     List         /api/v1/docs
+//     Show         /api/v1/docs/:docId
+//
 //   Querying
 //     LookupPrefix   /api/v1/lookup/prefix?q=<prefix>
 //     LookupNeighbor /api/v1/lookup/neighbor?asn=1235
@@ -112,6 +116,10 @@ func (s *Server) apiRegisterEndpoints(
 		endpoint(s.apiRoutesListFiltered))
 	router.GET("/api/v1/routeservers/:id/neighbors/:neighborId/routes/not-exported",
 		endpoint(s.apiRoutesListNotExported))
+
+	// Documentation
+	router.GET("/api/v1/docs", endpoint(s.apiDocsList))
+	router.GET("/api/v1/docs/:docId", endpoint(s.apiDocShow))
 
 	// Querying
 	if s.cfg.Server.EnablePrefixLookup {

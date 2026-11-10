@@ -244,6 +244,30 @@ Alice.onLayoutReady(function(page) {
 
 For an example check out: https://github.com/alice-lg/alice-theme-example
 
+## Documentation pages
+
+Alice can list markdown documents in the sidebar:
+
+    [docs]
+    path = /path/to/my/alice/docs
+    # Optional, default: Documentation
+    title = Documentation
+
+Every `*.md` file in this directory becomes a sidebar entry,
+which is rendered as a page at `/docs/<filename>`.
+Documents are ordered by filename, so a numeric prefix like
+`01-introduction.md` can be used for ordering. The title is taken
+from the first level one heading (`# Title`).
+
+Relative links to other documents (`02-routing.md`) open the
+corresponding page. All other files in the directory, like images,
+are served below `/docs-assets/` and can be referenced relatively,
+e.g. `![Topology](img/topology.png)`.
+
+The directory is read on every request, so documents can be
+added or changed without restarting Alice. Subdirectories are
+only used for assets. The rendered HTML is sanitized.
+
 ## Metrics
 
 When `enable_prometheus` is set to `true` in the configuration, Alice will expose metrics on `/metrics` in Prometheus

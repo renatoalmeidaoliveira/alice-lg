@@ -167,6 +167,8 @@ type UIConfig struct {
 
 	Theme ThemeConfig
 
+	Docs DocsConfig
+
 	Pagination PaginationConfig
 }
 
@@ -174,6 +176,13 @@ type UIConfig struct {
 type ThemeConfig struct {
 	Path     string `ini:"path"`
 	BasePath string `ini:"url_base"` // Optional, default: /theme
+}
+
+// DocsConfig describes a directory of markdown documents,
+// which are listed in the sidebar of the web interface.
+type DocsConfig struct {
+	Path  string `ini:"path"`  // Optional, docs are disabled if empty
+	Title string `ini:"title"` // Optional, default: Documentation
 }
 
 // PaginationConfig holds settings for route pagination
@@ -592,6 +601,16 @@ func getDefaultASN(config *ini.File) (string, error) {
 	return asn, nil
 }
 
+// Get UI config: Documentation settings
+func getDocsConfig(config *ini.File) DocsConfig {
+	docsConfig := DocsConfig{}
+	_ = config.Section("docs").MapTo(&docsConfig)
+	if docsConfig.Title == "" {
+		docsConfig.Title = "Documentation"
+	}
+	return docsConfig
+}
+
 // Get UI config: Theme settings
 func getThemeConfig(config *ini.File) ThemeConfig {
 	baseConfig := config.Section("theme")
@@ -670,6 +689,9 @@ func getUIConfig(config *ini.File) (UIConfig, error) {
 	// are found, it will be ignored
 	themeConfig := getThemeConfig(config)
 
+	// Documentation is optional as well
+	docsConfig := getDocsConfig(config)
+
 	// Pagination
 	paginationConfig := getPaginationConfig(config)
 
@@ -693,6 +715,7 @@ func getUIConfig(config *ini.File) (UIConfig, error) {
 		Rpki:                    rpki,
 
 		Theme: themeConfig,
+		Docs:  docsConfig,
 
 		Pagination: paginationConfig,
 	}

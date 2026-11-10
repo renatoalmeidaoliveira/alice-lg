@@ -11,6 +11,8 @@ import Content
   from 'app/components/content/Content';
 import RouteServers
   from 'app/components/navigation/RouteServers';
+import DocsNav
+  from 'app/components/navigation/DocsNav';
 
 
 const Sidebar = () => {
@@ -42,6 +44,7 @@ const Sidebar = () => {
         </div>
       </div>
       <RouteServers />
+      <DocsNav />
     </aside>
   );  
 }

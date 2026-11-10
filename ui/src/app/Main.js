@@ -20,6 +20,8 @@ import { ContentProvider }
   from 'app/context/content';
 import { RouteServersProvider }
   from 'app/context/route-servers';
+import { DocsProvider }
+  from 'app/context/docs';
 
 import Layout
   from 'app/components/page/Layout';
@@ -34,6 +36,8 @@ import RoutesPage
   from 'app/pages/RoutesPage';
 import SearchGlobalPage 
   from 'app/pages/SearchGlobalPage';
+import DocPage
+  from 'app/pages/DocPage';
 import NotFoundPage
   from 'app/pages/NotFoundPage';
 
@@ -68,6 +72,9 @@ const Routing = () => (
     {/* Search */}
     <Route path="search" element={<SearchGlobalPage />} />
 
+    {/* Documentation */}
+    <Route path="docs/:docId" element={<DocPage />} />
+
     {/* Fallback */}
     <Route path="*" element={<NotFoundPage />} />
   </Routes>
@@ -83,6 +90,7 @@ const Main = () => {
     <ErrorsProvider>
     <ConfigProvider>
     <RouteServersProvider>
+    <DocsProvider>
     <ContentProvider>
     <BrowserRouter>
       <Layout>
@@ -90,6 +98,7 @@ const Main = () => {
       </Layout>
     </BrowserRouter>
     </ContentProvider>
+    </DocsProvider>
     </RouteServersProvider>
     </ConfigProvider>
     </ErrorsProvider>

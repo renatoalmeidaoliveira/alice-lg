@@ -167,9 +167,9 @@ func extCommunitySubTypeName(subType bgp.ExtendedCommunityAttrSubType) string {
 // the alice representation [name, int, int].
 //
 // Route targets and route origins with an AS as global
-// administrator are rendered as e.g. rt:52890:20.
+// administrator are rendered as e.g. rt:65000:100.
 // All other types (e.g. opaque or vendor specific
-// communities like [64821] in the gobgp cli) are rendered
+// communities like [4242] in the gobgp cli) are rendered
 // as 0xTT:SUBTYPE:VALUE, where TT is the type, SUBTYPE the
 // sub type and VALUE the remaining 6 bytes as an integer.
 //

@@ -57,6 +57,9 @@ func (s *Server) webRegisterAssets(
 		log.Println("Warning:", err)
 	}
 
+	// Documentation assets (images, ...)
+	s.getDocs().RegisterDocsAssets(router)
+
 	// Update paths
 	indexHTML = s.webPrepareClientHTML(ctx, indexHTML)
 
@@ -80,6 +83,7 @@ func (s *Server) webRegisterAssets(
 	alicePaths := []string{
 		"/routeservers/*path",
 		"/search/*path",
+		"/docs/*path",
 	}
 	for _, path := range alicePaths {
 		// respond with app html
