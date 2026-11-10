@@ -67,37 +67,11 @@ func (s *Server) apiRoutesListReceived(
 	}
 
 	// Filter routes based on criteria if present
-	allRoutes := apiQueryFilterNextHopGateway(req, "q", result.Imported)
-	routes := api.Routes{}
-
-	// Apply other (community) filters
-	filtersApplied, err := api.FiltersFromQuery(req.URL.Query())
+	routes, filtersAvailable, filtersApplied, err := s.filterRoutes(
+		req, rsID, neighborID, routesReceived, result.Response.Meta, result.Imported)
 	if err != nil {
 		return nil, err
 	}
-
-	var hasIP4, hasIP6 bool
-	filtersAvailable := api.NewSearchFilters()
-	filtersNoLabels := filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
-	for _, r := range allRoutes {
-		if !filtersApplied.MatchRoute(r) {
-			// Keep the labels of routes, which are only excluded
-			// by the MPLS label filter, selectable.
-			if filtersNoLabels.MatchRoute(r) {
-				filtersAvailable.UpdateMPLSLabelsFromRoute(r)
-			}
-			continue // Exclude route from results set
-		}
-		routes = append(routes, r)
-		filtersAvailable.UpdateFromRoute(r)
-		hasIP4 = hasIP4 || r.AddrFamily == api.AddrFamilyIPv4
-		hasIP6 = hasIP6 || r.AddrFamily == api.AddrFamilyIPv6
-	}
-	filtersAvailable.SetFilterAddrFamilies(hasIP4, hasIP6)
-
-	// Remove applied filters from available
-	filtersApplied.MergeProperties(filtersAvailable)
-	filtersAvailable = filtersAvailable.Sub(filtersApplied)
 
 	// Paginate results
 	page := apiQueryMustInt(req, "page", 0)
@@ -158,38 +132,11 @@ func (s *Server) apiRoutesListFiltered(
 	}
 
 	// Filter routes based on criteria if present
-	allRoutes := apiQueryFilterNextHopGateway(req, "q", result.Filtered)
-	routes := api.Routes{}
-
-	// Apply other (community) filters
-	filtersApplied, err := api.FiltersFromQuery(req.URL.Query())
+	routes, filtersAvailable, filtersApplied, err := s.filterRoutes(
+		req, rsID, neighborID, routesFiltered, result.Response.Meta, result.Filtered)
 	if err != nil {
 		return nil, err
 	}
-
-	filtersAvailable := api.NewSearchFilters()
-	filtersNoLabels := filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
-	var hasIP4, hasIP6 bool
-	for _, r := range allRoutes {
-		if !filtersApplied.MatchRoute(r) {
-			// Keep the labels of routes, which are only excluded
-			// by the MPLS label filter, selectable.
-			if filtersNoLabels.MatchRoute(r) {
-				filtersAvailable.UpdateMPLSLabelsFromRoute(r)
-			}
-			continue // Exclude route from results set
-		}
-		routes = append(routes, r)
-
-		filtersAvailable.UpdateFromRoute(r)
-		hasIP4 = hasIP4 || r.AddrFamily == api.AddrFamilyIPv4
-		hasIP6 = hasIP6 || r.AddrFamily == api.AddrFamilyIPv6
-	}
-	filtersAvailable.SetFilterAddrFamilies(hasIP4, hasIP6)
-
-	// Remove applied filters from available
-	filtersApplied.MergeProperties(filtersAvailable)
-	filtersAvailable = filtersAvailable.Sub(filtersApplied)
 
 	// Paginate results
 	page := apiQueryMustInt(req, "page", 0)
@@ -250,37 +197,11 @@ func (s *Server) apiRoutesListNotExported(
 	}
 
 	// Filter routes based on criteria if present
-	allRoutes := apiQueryFilterNextHopGateway(req, "q", result.NotExported)
-	routes := api.Routes{}
-
-	// Apply other (community) filters
-	filtersApplied, err := api.FiltersFromQuery(req.URL.Query())
+	routes, filtersAvailable, filtersApplied, err := s.filterRoutes(
+		req, rsID, neighborID, routesNotExported, result.Response.Meta, result.NotExported)
 	if err != nil {
 		return nil, err
 	}
-
-	filtersAvailable := api.NewSearchFilters()
-	filtersNoLabels := filtersApplied.WithoutGroup(api.SearchKeyMPLSLabels)
-	var hasIP4, hasIP6 bool
-	for _, r := range allRoutes {
-		if !filtersApplied.MatchRoute(r) {
-			// Keep the labels of routes, which are only excluded
-			// by the MPLS label filter, selectable.
-			if filtersNoLabels.MatchRoute(r) {
-				filtersAvailable.UpdateMPLSLabelsFromRoute(r)
-			}
-			continue // Exclude route from results set
-		}
-		routes = append(routes, r)
-		filtersAvailable.UpdateFromRoute(r)
-		hasIP4 = hasIP4 || r.AddrFamily == api.AddrFamilyIPv4
-		hasIP6 = hasIP6 || r.AddrFamily == api.AddrFamilyIPv6
-	}
-	filtersAvailable.SetFilterAddrFamilies(hasIP4, hasIP6)
-
-	// Remove applied filters from available
-	filtersApplied.MergeProperties(filtersAvailable)
-	filtersAvailable = filtersAvailable.Sub(filtersApplied)
 
 	// Paginate results
 	page := apiQueryMustInt(req, "page", 0)

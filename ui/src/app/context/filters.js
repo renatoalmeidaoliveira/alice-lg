@@ -85,50 +85,29 @@ const FILTER_VALUE_CMP = {
 }
 
 /*
- * Filters set compare
+ * Merge list of filters: Filters with the same value
+ * are combined and their cardinalities are added up.
+ * The filters of the responses are not modified.
  */
-const cmpFilterValue = (set, filter) => {
-  for (const f of set) {
-    if(f.value === filter.value) {
-      return f;
-    }
-  }
-  return null;
-}
+const filterKey = (filter) =>
+  Array.isArray(filter.value)
+    ? filter.value.join(":")
+    : String(filter.value);
 
-const cmpFilterCommunity = (set, filter) => {
-  for (const f of set) {
-    let match = true;
-    for (const i in f.value) {
-      if (f.value[i] !== filter.value[i]) {
-        match = false;
-        break;
+const mergeFilterSet = (a, b) => {
+  const merged = new Map();
+  for (const set of [a, b]) {
+    for (const f of set) {
+      const key = filterKey(f);
+      const present = merged.get(key);
+      if (present) {
+        present.cardinality += f.cardinality;
+        continue;
       }
-    }
-    if (match) {
-      return f;
+      merged.set(key, {...f});
     }
   }
-  return null;
-}
-
-
-
-/*
- * Merge list of filters
- */
-const mergeFilterSet = (inSet, a, b) => {
-  let result = a;
-  for (const f of b) {
-    const present = inSet(result, f);
-    if (present) {
-      // Update filter cardinality
-      present.cardinality += f.cardinality;
-      continue;
-    }
-    result.push(f);
-  }
-  return result;
+  return Array.from(merged.values());
 }
 
 
@@ -140,17 +119,9 @@ const _mergeFilters = (a, b) => {
   if (!a || !b) {
     return groups;
   }
-  let setCmp = [];
-  setCmp[FILTER_GROUP_SOURCES] = cmpFilterValue;
-  setCmp[FILTER_GROUP_ASNS] = cmpFilterValue;
-  setCmp[FILTER_GROUP_COMMUNITIES] = cmpFilterCommunity;
-  setCmp[FILTER_GROUP_EXT_COMMUNITIES] = cmpFilterCommunity;
-  setCmp[FILTER_GROUP_LARGE_COMMUNITIES] = cmpFilterCommunity;
-  setCmp[FILTER_GROUP_ADDR_FAMILY] = cmpFilterValue;
-  setCmp[FILTER_GROUP_MPLS_LABELS] = cmpFilterValue;
   for (const i in groups) {
     if (a[i]?.filters && b[i]?.filters) {
-      groups[i].filters = mergeFilterSet(setCmp[i], a[i].filters, b[i].filters);
+      groups[i].filters = mergeFilterSet(a[i].filters, b[i].filters);
     }
     else if(a[i]?.filters) {
       groups[i].filters = a[i].filters;
@@ -158,6 +129,8 @@ const _mergeFilters = (a, b) => {
     else if(b[i]?.filters) {
       groups[i].filters = b[i].filters;
     }
+    // Filters omitted by the server (e.g. rare MPLS labels)
+    groups[i].omitted = Math.max(a[i]?.omitted || 0, b[i]?.omitted || 0);
   }
   return groups;
 }
@@ -336,6 +309,7 @@ const createGroupFilters = (group) => () => {
     filters: {
       applied:   filters.applied[group].filters,
       available: filters.available[group].filters,
+      omitted:   filters.available[group].omitted || 0,
     },
     applyFilter: applyGroupFilter,
     removeFilter: removeGroupFilter,

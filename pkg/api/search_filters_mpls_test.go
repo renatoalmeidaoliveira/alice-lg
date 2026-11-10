@@ -119,3 +119,42 @@ func TestWithoutGroupMPLSLabels(t *testing.T) {
 		t.Error("route should match without label filter")
 	}
 }
+
+func TestSearchFilterGroupLimit(t *testing.T) {
+	filters := NewSearchFilters()
+	for i := 0; i < 10; i++ {
+		// Label 100+i is carried by i+1 routes
+		for j := 0; j <= i; j++ {
+			filters.UpdateMPLSLabelsFromRoute(&Route{
+				MPLSLabels: []uint32{uint32(100 + i)},
+			})
+		}
+	}
+	group := filters.GetGroupByKey(SearchKeyMPLSLabels)
+	group.Limit(3)
+
+	if len(group.Filters) != 3 {
+		t.Fatal("expected 3 filters, got:", len(group.Filters))
+	}
+	if group.Omitted != 7 {
+		t.Error("expected 7 omitted filters, got:", group.Omitted)
+	}
+	for i, label := range []int{107, 108, 109} {
+		if group.Filters[i].Value.(int) != label {
+			t.Error("unexpected label:", group.Filters[i].Value)
+		}
+	}
+	// The index must still work after the limit
+	if group.GetFilterByValue(109) == nil {
+		t.Error("expected label 109 in index")
+	}
+	if group.GetFilterByValue(100) != nil {
+		t.Error("label 100 should have been omitted")
+	}
+
+	// Nothing to do below the limit
+	group.Limit(5)
+	if len(group.Filters) != 3 || group.Omitted != 7 {
+		t.Error("unexpected change below limit")
+	}
+}

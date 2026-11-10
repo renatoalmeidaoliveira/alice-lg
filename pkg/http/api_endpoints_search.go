@@ -174,6 +174,7 @@ func (s *Server) apiLookupPrefixGlobal(
 	// Remove applied filters from available
 	filtersApplied.MergeProperties(filtersAvailable)
 	filtersAvailable = filtersAvailable.Sub(filtersApplied)
+	limitFiltersAvailable(filtersAvailable)
 
 	// Homogenize results
 	sort.Sort(imported)

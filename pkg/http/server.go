@@ -24,6 +24,8 @@ type Server struct {
 	neighborsStore *store.NeighborsStore
 	pool           *pgxpool.Pool
 	docs           *Docs
+
+	filteredRoutes *filteredRoutesCache
 }
 
 // NewServer creates a new server
@@ -39,6 +41,8 @@ func NewServer(
 		neighborsStore: neighborsStore,
 		pool:           pool,
 		docs:           NewDocs(cfg.UI.Docs),
+
+		filteredRoutes: newFilteredRoutesCache(),
 	}
 }
 

@@ -119,32 +119,33 @@ const CommunitiesSelect = () => {
       extCommunitiesFilters.filters.available.length > 0 ||
       largeCommunitiesFilters.filters.available.length > 0;
 
-  const communitiesAvailable =
-    communitiesFilters.filters.available.sort((a, b) => {
+  // Sort copies: the available filters are shared state
+  const communitiesAvailableFilters = communitiesFilters.filters.available;
+  const extCommunitiesAvailableFilters = extCommunitiesFilters.filters.available;
+  const largeCommunitiesAvailableFilters = largeCommunitiesFilters.filters.available;
+
+  const communitiesOptions = useMemo(() =>
+    [...communitiesAvailableFilters].sort((a, b) => {
       return (a.value[0] - b.value[0]) * 100000 + (a.value[1] - b.value[1]);
-    });
+    }).map((filter) => (
+      <CommunityOption key={filter.value} filter={filter} />
+    )), [communitiesAvailableFilters]);
 
-  const extCommunitiesAvailable =
-    extCommunitiesFilters.filters.available.sort((a, b) => {
+  const extCommunitiesOptions = useMemo(() =>
+    [...extCommunitiesAvailableFilters].sort((a, b) => {
       return (a.value[1] - b.value[1]) * 100000 + (a.value[2] - b.value[2]);
-    });
+    }).map((filter) => (
+      <ExtCommunityOption key={filter.value} filter={filter} />
+    )), [extCommunitiesAvailableFilters]);
 
-  const largeCommunitiesAvailable = 
-    largeCommunitiesFilters.filters.available.sort((a, b) => {
+  const largeCommunitiesOptions = useMemo(() =>
+    [...largeCommunitiesAvailableFilters].sort((a, b) => {
       return (a.value[0] - b.value[0]) * 10000000000 +
              (a.value[1] - b.value[1]) * 100000 +
              (a.value[2] - b.value[2]);
-    });
-
-  const communitiesOptions = communitiesAvailable.map((filter) => (
-    <CommunityOption key={filter.value} filter={filter} />
-  ));
-  const extCommunitiesOptions = extCommunitiesAvailable.map((filter) => (
-    <ExtCommunityOption key={filter.value} filter={filter} /> 
-  ));
-  const largeCommunitiesOptions = largeCommunitiesAvailable.map((filter) => (
-    <LargeCommunityOption key={filter.value} filter={filter} />
-  ));
+    }).map((filter) => (
+      <LargeCommunityOption key={filter.value} filter={filter} />
+    )), [largeCommunitiesAvailableFilters]);
 
   const appliedCommunities = communitiesFilters.filters.applied.map((filter) => (
     <AppliedCommunity 

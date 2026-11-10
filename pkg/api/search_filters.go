@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -145,6 +146,10 @@ type SearchFilterGroup struct {
 
 	Filters    []*SearchFilter `json:"filters"`
 	filtersIdx map[string]int
+
+	// Omitted is the number of filters left out
+	// of the group by Limit.
+	Omitted int `json:"omitted,omitempty"`
 }
 
 // FindFilter tries to lookup a filter in
@@ -209,6 +214,22 @@ func (g *SearchFilterGroup) AddFilter(filter *SearchFilter) {
 	g.Filters = append(g.Filters, filter)
 	ref := filterValueAsString(filter.Value)
 	g.filtersIdx[ref] = idx
+}
+
+// addFilterValue adds a filter for a value with the string
+// representation ref, as AddFilter does. A filter is only
+// allocated for values not present in the group.
+func (g *SearchFilterGroup) addFilterValue(ref string, value FilterValue) {
+	if idx, ok := g.filtersIdx[ref]; ok {
+		g.Filters[idx].Cardinality++
+		return
+	}
+	g.filtersIdx[ref] = len(g.Filters)
+	g.Filters = append(g.Filters, &SearchFilter{
+		Name:        ref,
+		Value:       value,
+		Cardinality: 1,
+	})
 }
 
 // AddFilters adds a list of filters to a group.
@@ -455,24 +476,15 @@ func (s *SearchFilters) UpdateCommunitiesFromLookupRoute(r *LookupRoute) {
 	// Add communities
 	communities := s.GetGroupByKey(SearchKeyCommunities)
 	for _, c := range r.Route.BGP.Communities {
-		communities.AddFilter(&SearchFilter{
-			Name:  c.String(),
-			Value: c,
-		})
+		communities.addFilterValue(c.String(), c)
 	}
 	extCommunities := s.GetGroupByKey(SearchKeyExtCommunities)
 	for _, c := range r.Route.BGP.ExtCommunities {
-		extCommunities.AddFilter(&SearchFilter{
-			Name:  c.String(),
-			Value: c,
-		})
+		extCommunities.addFilterValue(c.String(), c)
 	}
 	largeCommunities := s.GetGroupByKey(SearchKeyLargeCommunities)
 	for _, c := range r.Route.BGP.LargeCommunities {
-		largeCommunities.AddFilter(&SearchFilter{
-			Name:  c.String(),
-			Value: c,
-		})
+		largeCommunities.addFilterValue(c.String(), c)
 	}
 }
 
@@ -490,10 +502,7 @@ func (s *SearchFilters) UpdateMPLSLabelsFromRoute(r *Route) {
 	labels := s.GetGroupByKey(SearchKeyMPLSLabels)
 	for _, l := range r.MPLSLabels {
 		label := int(l)
-		labels.AddFilter(&SearchFilter{
-			Name:  strconv.Itoa(label),
-			Value: label,
-		})
+		labels.addFilterValue(strconv.Itoa(label), label)
 	}
 }
 
@@ -519,24 +528,15 @@ func (s *SearchFilters) UpdateFromRoute(r *Route) {
 	// Add communities
 	communities := s.GetGroupByKey(SearchKeyCommunities)
 	for _, c := range r.BGP.Communities {
-		communities.AddFilter(&SearchFilter{
-			Name:  c.String(),
-			Value: c,
-		})
+		communities.addFilterValue(c.String(), c)
 	}
 	extCommunities := s.GetGroupByKey(SearchKeyExtCommunities)
 	for _, c := range r.BGP.ExtCommunities {
-		extCommunities.AddFilter(&SearchFilter{
-			Name:  c.String(),
-			Value: c,
-		})
+		extCommunities.addFilterValue(c.String(), c)
 	}
 	largeCommunities := s.GetGroupByKey(SearchKeyLargeCommunities)
 	for _, c := range r.BGP.LargeCommunities {
-		largeCommunities.AddFilter(&SearchFilter{
-			Name:  c.String(),
-			Value: c,
-		})
+		largeCommunities.addFilterValue(c.String(), c)
 	}
 
 	s.UpdateMPLSLabelsFromRoute(r)
@@ -804,6 +804,33 @@ func (s *SearchFilters) MergeProperties(other *SearchFilters) {
 			filter.Cardinality = otherFilter.Cardinality
 		}
 	}
+}
+
+// Limit keeps the n filters with the highest cardinality
+// in a filter group and counts the omitted filters.
+// The remaining filters keep their order.
+func (g *SearchFilterGroup) Limit(n int) {
+	if len(g.Filters) <= n {
+		return
+	}
+	ranked := make([]*SearchFilter, len(g.Filters))
+	copy(ranked, g.Filters)
+	sort.SliceStable(ranked, func(i, j int) bool {
+		return ranked[i].Cardinality > ranked[j].Cardinality
+	})
+	keep := make(map[*SearchFilter]bool, n)
+	for _, f := range ranked[:n] {
+		keep[f] = true
+	}
+	filters := make([]*SearchFilter, 0, n)
+	for _, f := range g.Filters {
+		if keep[f] {
+			filters = append(filters, f)
+		}
+	}
+	g.Omitted += len(g.Filters) - n
+	g.Filters = filters
+	g.rebuildIndex()
 }
 
 // WithoutGroup returns a copy of the search filters
