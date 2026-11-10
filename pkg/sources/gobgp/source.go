@@ -27,9 +27,9 @@ type GoBGP struct {
 
 	// Caches: Routes
 	routesRequiredCache    *caches.RoutesCache
-	routesReceivedCache    *caches.RoutesCache
-	routesFilteredCache    *caches.RoutesCache
 	routesNotExportedCache *caches.RoutesCache
+
+	fetcher *routesFetcher
 }
 
 // NewGoBGP creates a new GoBGP source instance
@@ -55,20 +55,15 @@ func NewGoBGP(config Config) *GoBGP {
 
 	client := gobgpapi.NewGobgpApiClient(conn)
 
-	// Cache settings:
-	// TODO: Maybe read from config file
+	// Cache settings
 	neighborsCacheDisable := false
 
-	routesCacheDisabled := false
-	routesCacheMaxSize := 128
+	routesCacheDisabled := config.CacheTTL <= 0
+	routesCacheMaxSize := config.RoutesCacheSize
 
 	// Initialize caches
 	neighborsCache := caches.NewNeighborsCache(neighborsCacheDisable)
 	routesRequiredCache := caches.NewRoutesCache(
-		routesCacheDisabled, routesCacheMaxSize)
-	routesReceivedCache := caches.NewRoutesCache(
-		routesCacheDisabled, routesCacheMaxSize)
-	routesFilteredCache := caches.NewRoutesCache(
 		routesCacheDisabled, routesCacheMaxSize)
 	routesNotExportedCache := caches.NewRoutesCache(
 		routesCacheDisabled, routesCacheMaxSize)
@@ -80,9 +75,9 @@ func NewGoBGP(config Config) *GoBGP {
 		neighborsCache: neighborsCache,
 
 		routesRequiredCache:    routesRequiredCache,
-		routesReceivedCache:    routesReceivedCache,
-		routesFilteredCache:    routesFilteredCache,
 		routesNotExportedCache: routesNotExportedCache,
+
+		fetcher: newRoutesFetcher(),
 	}
 }
 
@@ -237,34 +232,19 @@ func (gobgp *GoBGP) Routes(
 	ctx context.Context,
 	neighborID string,
 ) (*api.RoutesResponse, error) {
-	neigh, err := gobgp.lookupNeighbor(ctx, neighborID)
-	if err != nil {
-		return nil, err
-	}
-
-	routes := NewRoutesResponse()
-	err = gobgp.GetRoutes(ctx, neigh, gobgpapi.TableType_ADJ_IN, &routes)
-	if err != nil {
-		return nil, err
-	}
-	return &routes, nil
+	return gobgp.getRoutes(ctx, neighborID)
 }
 
+// getRoutes retrieves the Adj-RIB-In of a neighbor.
+// The received and filtered routes share a single
+// cached ListPath result.
 func (gobgp *GoBGP) getRoutes(
 	ctx context.Context,
 	neighborID string,
 ) (*api.RoutesResponse, error) {
-	neigh, err := gobgp.lookupNeighbor(ctx, neighborID)
-	if err != nil {
-		return nil, err
-	}
-
-	routes := NewRoutesResponse()
-	err = gobgp.GetRoutes(ctx, neigh, gobgpapi.TableType_ADJ_IN, &routes)
-	if err != nil {
-		return nil, err
-	}
-	return &routes, nil
+	return gobgp.cachedRoutes(
+		ctx, gobgp.routesRequiredCache,
+		gobgpapi.TableType_ADJ_IN, neighborID)
 }
 
 // RoutesRequired is a specialized request to fetch:
@@ -289,18 +269,14 @@ func (gobgp *GoBGP) RoutesReceived(
 	ctx context.Context,
 	neighborID string,
 ) (*api.RoutesResponse, error) {
-	neigh, err := gobgp.lookupNeighbor(ctx, neighborID)
+	routes, err := gobgp.getRoutes(ctx, neighborID)
 	if err != nil {
 		return nil, err
 	}
-
-	routes := NewRoutesResponse()
-	err = gobgp.GetRoutes(ctx, neigh, gobgpapi.TableType_ADJ_IN, &routes)
-	if err != nil {
-		return nil, err
-	}
-	routes.Filtered = nil
-	return &routes, nil
+	return &api.RoutesResponse{
+		Response: routes.Response,
+		Imported: routes.Imported,
+	}, nil
 }
 
 // RoutesFiltered gets all filtered routes
@@ -311,9 +287,12 @@ func (gobgp *GoBGP) RoutesFiltered(
 	routes, err := gobgp.getRoutes(ctx, neighborID)
 	if err != nil {
 		log.Print(err)
+		return nil, err
 	}
-	routes.Imported = nil
-	return routes, err
+	return &api.RoutesResponse{
+		Response: routes.Response,
+		Filtered: routes.Filtered,
+	}, nil
 }
 
 // RoutesNotExported gets all not exported routes
@@ -321,17 +300,16 @@ func (gobgp *GoBGP) RoutesNotExported(
 	ctx context.Context,
 	neighborID string,
 ) (*api.RoutesResponse, error) {
-	neigh, err := gobgp.lookupNeighbor(ctx, neighborID)
+	routes, err := gobgp.cachedRoutes(
+		ctx, gobgp.routesNotExportedCache,
+		gobgpapi.TableType_ADJ_OUT, neighborID)
 	if err != nil {
 		return nil, err
 	}
-	routes := NewRoutesResponse()
-	err = gobgp.GetRoutes(ctx, neigh, gobgpapi.TableType_ADJ_OUT, &routes)
-	if err != nil {
-		return nil, err
-	}
-	routes.NotExported = routes.Filtered
-	return &routes, nil
+	return &api.RoutesResponse{
+		Response:    routes.Response,
+		NotExported: routes.Filtered,
+	}, nil
 }
 
 // AllRoutes returns a routes dump (filtered, received),

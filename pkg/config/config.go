@@ -840,6 +840,12 @@ func getSources(config *ini.File) ([]*SourceConfig, error) {
 			if c.ProcessingTimeout == 0 {
 				c.ProcessingTimeout = 300
 			}
+			//  - cache_ttl: routes of a neighbor are cached
+			//    for n seconds, 0 disables the cache.
+			c.CacheTTL = time.Second * time.Duration(
+				backendConfig.Key("cache_ttl").MustInt(300))
+			c.RoutesCacheSize = backendConfig.Key(
+				"routes_cache_size").MustInt(128)
 
 			srcCfg.GoBGP = c
 
